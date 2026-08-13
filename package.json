@@ -1,0 +1,74 @@
+{
+  "name": "@cunpingtai/ad-traffic-guard",
+  "version": "0.1.0",
+  "description": "A browser-side ad eligibility gate that delays AdSense loading until traffic shows minimum human-quality signals.",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "author": "cunpingtai",
+  "homepage": "https://github.com/cunpingtai/ad-traffic-guard#readme",
+  "bugs": {
+    "url": "https://github.com/cunpingtai/ad-traffic-guard/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cunpingtai/ad-traffic-guard.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist .tmp-test",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "react": ">=18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.8.0"
+  },
+  "keywords": [
+    "adsense",
+    "invalid-traffic",
+    "lazy-load",
+    "advertising",
+    "bot",
+    "nextjs",
+    "react"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
