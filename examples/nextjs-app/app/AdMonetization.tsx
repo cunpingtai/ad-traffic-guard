@@ -9,12 +9,23 @@ import {
 
 const ADSENSE_CLIENT = "ca-pub-XXXXXXXXXXXXXXXX";
 
-export function AdMonetization({ children }: { children: React.ReactNode }) {
+export function AdMonetization({
+  children,
+  knownBot = false,
+  cfBotScore
+}: {
+  children: React.ReactNode;
+  knownBot?: boolean;
+  cfBotScore?: number;
+}) {
   const pathname = usePathname();
   const consentGranted = true; // Replace with your CMP state.
 
   return (
-    <AdTrafficGuardProvider routeKey={pathname}>
+    <AdTrafficGuardProvider
+      routeKey={pathname}
+      externalSignals={{ knownBot, cfBotScore }}
+    >
       <AdSenseLoader
         client={ADSENSE_CLIENT}
         consentGranted={consentGranted}

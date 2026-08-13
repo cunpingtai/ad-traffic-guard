@@ -10,8 +10,10 @@ export const defaultAdTrafficGuardConfig: AdTrafficGuardConfig = {
   highFrequencyReloads: 4,
   highRiskThreshold: 60,
   blockKnownBots: true,
-  blockWebDriver: true,
+  blockBrowserAutomation: true,
   disableOnLocalhost: true,
+  cfLikelyAutomatedMaxScore: 30,
+  readKnownCrawlerCookie: true,
   evaluationIntervalMs: 500,
   storageKey: "ad-traffic-guard:v1"
 };
@@ -19,5 +21,12 @@ export const defaultAdTrafficGuardConfig: AdTrafficGuardConfig = {
 export function mergeAdTrafficGuardConfig(
   config: Partial<AdTrafficGuardConfig> = {}
 ): AdTrafficGuardConfig {
-  return { ...defaultAdTrafficGuardConfig, ...config };
+  return {
+    ...defaultAdTrafficGuardConfig,
+    ...config,
+    externalSignals: {
+      ...defaultAdTrafficGuardConfig.externalSignals,
+      ...config.externalSignals
+    }
+  };
 }

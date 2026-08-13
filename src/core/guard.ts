@@ -1,4 +1,11 @@
-import { isKnownBotUserAgent } from "./bot.js";
+import {
+  detectBrowserAutomationWith,
+  getDefaultBrowserAutomationDetector
+} from "../detectors/botd.js";
+import {
+  ATG_KNOWN_CRAWLER_COOKIE,
+  knownCrawlerCookieValue
+} from "../shared/known-crawler-mark.js";
 import { mergeAdTrafficGuardConfig } from "./config.js";
 import { evaluateAdEligibility } from "./evaluate.js";
 import { readTrafficFrequency, recordPageView } from "./session.js";
@@ -6,7 +13,8 @@ import type {
   AdEligibilityResult,
   AdEligibilitySignals,
   AdTrafficGuardConfig,
-  AdTrafficGuardController
+  AdTrafficGuardController,
+  ExternalAdTrafficSignals
 } from "./types.js";
 
 function isLocalHost(hostname: string): boolean {
@@ -20,13 +28,23 @@ function isLocalHost(hostname: string): boolean {
 
 function isReloadNavigation(): boolean {
   if (typeof performance === "undefined") return false;
-  const entry = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  const entry = performance.getEntriesByType("navigation")[0] as
+    | PerformanceNavigationTiming
+    | undefined;
   return entry?.type === "reload";
 }
 
 function isPrerendered(): boolean {
   if (typeof document === "undefined") return false;
   return (document as Document & { prerendering?: boolean }).prerendering === true;
+}
+
+function readKnownCrawlerCookie(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .some((part) => part === `${ATG_KNOWN_CRAWLER_COOKIE}=${knownCrawlerCookieValue}`);
 }
 
 function initialSignals(): AdEligibilitySignals {
@@ -37,18 +55,21 @@ function initialSignals(): AdEligibilitySignals {
     pageFocused: false,
     hadTrustedInteraction: false,
     knownBot: false,
-    webdriver: false,
+    browserAutomation: false,
+    browserAutomationReady: false,
+    browserAutomationError: false,
     localhost: false,
     prerender: false,
     pageViewsInWindow: 0,
-    reloadsInWindow: 0
+    reloadsInWindow: 0,
+    verifiedBot: false
   };
 }
 
 export function createAdTrafficGuard(
   partialConfig: Partial<AdTrafficGuardConfig> = {}
 ): AdTrafficGuardController {
-  const config = mergeAdTrafficGuardConfig(partialConfig);
+  let config = mergeAdTrafficGuardConfig(partialConfig);
   const listeners = new Set<(result: AdEligibilityResult) => void>();
 
   let started = false;
@@ -56,6 +77,9 @@ export function createAdTrafficGuard(
   let visibleStartedAt: number | null = null;
   let accumulatedVisibleMs = 0;
   let hadTrustedInteraction = false;
+  let browserAutomation = false;
+  let browserAutomationReady = Boolean(config.skipBrowserAutomationDetection);
+  let browserAutomationError = false;
   let interval: ReturnType<typeof setInterval> | null = null;
   let snapshot: AdEligibilityResult = {
     status: "waiting",
@@ -67,7 +91,8 @@ export function createAdTrafficGuard(
   };
 
   const nowVisibleMs = (now = Date.now()) =>
-    accumulatedVisibleMs + (visibleStartedAt === null ? 0 : Math.max(0, now - visibleStartedAt));
+    accumulatedVisibleMs +
+    (visibleStartedAt === null ? 0 : Math.max(0, now - visibleStartedAt));
 
   const collectSignals = (): AdEligibilitySignals => {
     if (typeof window === "undefined" || typeof document === "undefined") {
@@ -75,8 +100,13 @@ export function createAdTrafficGuard(
     }
 
     const now = Date.now();
-    const frequency = readTrafficFrequency(config.storageKey, config.frequencyWindowMs, now);
-    const userAgent = navigator.userAgent ?? "";
+    const frequency = readTrafficFrequency(
+      config.storageKey,
+      config.frequencyWindowMs,
+      now
+    );
+    const cookieKnownBot =
+      config.readKnownCrawlerCookie === false ? false : readKnownCrawlerCookie();
 
     return {
       elapsedMs: Math.max(0, now - startedAt),
@@ -84,10 +114,13 @@ export function createAdTrafficGuard(
       pageVisible: document.visibilityState === "visible",
       pageFocused: document.hasFocus(),
       hadTrustedInteraction,
-      knownBot: isKnownBotUserAgent(userAgent, config.additionalBotPattern),
-      webdriver: navigator.webdriver === true,
+      knownBot: cookieKnownBot,
+      browserAutomation,
+      browserAutomationReady,
+      browserAutomationError,
       localhost: isLocalHost(window.location.hostname),
       prerender: isPrerendered(),
+      verifiedBot: false,
       ...frequency
     };
   };
@@ -130,19 +163,47 @@ export function createAdTrafficGuard(
     "wheel"
   ];
 
+  const runBrowserAutomationDetection = () => {
+    if (config.skipBrowserAutomationDetection) {
+      browserAutomationReady = true;
+      browserAutomation = false;
+      browserAutomationError = false;
+      publish();
+      return;
+    }
+
+    const detect =
+      config.detectBrowserAutomation ?? getDefaultBrowserAutomationDetector();
+
+    void detectBrowserAutomationWith(detect).then((result) => {
+      browserAutomationReady = result.ready;
+      browserAutomation = result.automation;
+      browserAutomationError = result.error;
+      publish();
+    });
+  };
+
   const start = () => {
-    if (started || typeof window === "undefined" || typeof document === "undefined") return;
+    if (started || typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
     started = true;
     startedAt = Date.now();
     accumulatedVisibleMs = 0;
-    visibleStartedAt = document.visibilityState === "visible" ? startedAt : null;
+    visibleStartedAt =
+      document.visibilityState === "visible" ? startedAt : null;
+    browserAutomation = false;
+    browserAutomationReady = Boolean(config.skipBrowserAutomationDetection);
+    browserAutomationError = false;
 
     recordPageView(config.storageKey, config.frequencyWindowMs, {
       isReload: isReloadNavigation(),
       now: startedAt
     });
 
-    document.addEventListener("visibilitychange", onVisibilityChange, { passive: true });
+    document.addEventListener("visibilitychange", onVisibilityChange, {
+      passive: true
+    });
     window.addEventListener("focus", publish, { passive: true });
     window.addEventListener("blur", publish, { passive: true });
     for (const eventName of interactionEvents) {
@@ -150,11 +211,14 @@ export function createAdTrafficGuard(
     }
 
     publish();
+    runBrowserAutomationDetection();
     interval = setInterval(publish, config.evaluationIntervalMs);
   };
 
   const stop = () => {
-    if (!started || typeof window === "undefined" || typeof document === "undefined") return;
+    if (!started || typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
     started = false;
 
     if (visibleStartedAt !== null) {
@@ -178,6 +242,16 @@ export function createAdTrafficGuard(
     trackPageView() {
       if (typeof window === "undefined") return;
       recordPageView(config.storageKey, config.frequencyWindowMs);
+      publish();
+    },
+    setExternalSignals(signals: ExternalAdTrafficSignals) {
+      config = mergeAdTrafficGuardConfig({
+        ...config,
+        externalSignals: {
+          ...config.externalSignals,
+          ...signals
+        }
+      });
       publish();
     },
     evaluate: publish,

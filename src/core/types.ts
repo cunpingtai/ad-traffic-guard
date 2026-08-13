@@ -4,7 +4,8 @@ export type AdEligibilityStatus = "waiting" | "allowed" | "blocked";
 export type AdEligibilityReason =
   | "initializing"
   | "known-bot"
-  | "webdriver"
+  | "browser-automation"
+  | "detecting-automation"
   | "localhost"
   | "prerender"
   | "hidden-page"
@@ -13,6 +14,15 @@ export type AdEligibilityReason =
   | "high-frequency"
   | "insufficient-signals";
 
+export interface ExternalAdTrafficSignals {
+  /** Server/edge mark from isbot (or equivalent). */
+  knownBot?: boolean;
+  /** Cloudflare Bot Management score (1 = most bot-like, 99 = most human-like). */
+  cfBotScore?: number;
+  /** Cloudflare verified bot (e.g. Googlebot). Treated as knownBot for ads. */
+  verifiedBot?: boolean;
+}
+
 export interface AdEligibilitySignals {
   elapsedMs: number;
   visibleMs: number;
@@ -20,11 +30,18 @@ export interface AdEligibilitySignals {
   pageFocused: boolean;
   hadTrustedInteraction: boolean;
   knownBot: boolean;
-  webdriver: boolean;
+  /** True when BotD (or injected detector) reports browser automation. */
+  browserAutomation: boolean;
+  /** False until BotD / injected detector settles (success or failure). */
+  browserAutomationReady: boolean;
+  /** True when the automation detector threw; never treat as trusted human. */
+  browserAutomationError: boolean;
   localhost: boolean;
   prerender: boolean;
   pageViewsInWindow: number;
   reloadsInWindow: number;
+  cfBotScore?: number;
+  verifiedBot: boolean;
 }
 
 export interface AdEligibilityResult {
@@ -35,6 +52,11 @@ export interface AdEligibilityResult {
   reason: AdEligibilityReason;
   signals: AdEligibilitySignals;
 }
+
+export type BrowserAutomationDetector = () => Promise<{
+  bot: boolean;
+  botKind?: string;
+}>;
 
 export interface AdTrafficGuardConfig {
   /** Minimum visible time after a trusted interaction before ads may load. */
@@ -53,14 +75,22 @@ export interface AdTrafficGuardConfig {
   highFrequencyReloads: number;
   /** Score at or above this value is considered high risk. */
   highRiskThreshold: number;
-  /** Hard-block recognized crawler / bot user agents. */
+  /** Hard-block requests marked as known crawlers (via externalSignals / cookie). */
   blockKnownBots: boolean;
-  /** Hard-block browsers exposing navigator.webdriver. */
-  blockWebDriver: boolean;
+  /** Hard-block when BotD reports browser automation. */
+  blockBrowserAutomation: boolean;
   /** Keep production ads disabled on localhost / loopback hosts. */
   disableOnLocalhost: boolean;
-  /** Optional extra bot detector layered on top of the built-in detector. */
-  additionalBotPattern?: RegExp;
+  /** Cloudflare scores strictly below this are treated as high risk. */
+  cfLikelyAutomatedMaxScore: number;
+  /** Injected/server signals layered into every evaluation. */
+  externalSignals?: ExternalAdTrafficSignals;
+  /** Optional detector override (defaults to Fingerprint BotD). */
+  detectBrowserAutomation?: BrowserAutomationDetector;
+  /** Skip client automation detection (tests / constrained environments). */
+  skipBrowserAutomationDetection?: boolean;
+  /** Read the known-crawler cookie set by server middleware. */
+  readKnownCrawlerCookie?: boolean;
   /** Poll interval while the decision is waiting. */
   evaluationIntervalMs: number;
   /** Session storage namespace so multiple apps can isolate counters. */
@@ -71,6 +101,7 @@ export interface AdTrafficGuardController {
   start(): void;
   stop(): void;
   trackPageView(): void;
+  setExternalSignals(signals: ExternalAdTrafficSignals): void;
   evaluate(): AdEligibilityResult;
   getSnapshot(): AdEligibilityResult;
   subscribe(listener: (result: AdEligibilityResult) => void): () => void;
