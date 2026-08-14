@@ -92,7 +92,10 @@ Wrap from `app/layout.tsx`. **Remove** any static AdSense SDK tag from `<head>`:
 
 ## Default policy
 
-| Traffic state | Default behavior |
+> **Current default: `passthrough: true`.**  
+> All eligibility checks are skipped and ads are allowed immediately (including Auto ads script load). Set `passthrough: false` when you want the guard back on.
+
+| Traffic state | Behavior when `passthrough: false` |
 |---|---|
 | `isbot` / known-crawler cookie / verified bot | Block ads |
 | BotD reports browser automation | Block ads |
@@ -110,16 +113,9 @@ Wrap from `app/layout.tsx`. **Remove** any static AdSense SDK tag from `<head>`:
 ```tsx
 <AdTrafficGuardProvider
   routeKey={pathname}
+  // Re-enable gating later:
+  config={{ passthrough: false }}
   externalSignals={{ knownBot, cfBotScore, verifiedBot }}
-  config={{
-    interactionMinVisibleMs: 6_000,
-    passiveMinVisibleMs: 18_000,
-    highFrequencyMinVisibleMs: 25_000,
-    maxWaitMs: 35_000,
-    cfLikelyAutomatedMaxScore: 30,
-    blockBrowserAutomation: true,
-    skipBrowserAutomationDetection: false
-  }}
 >
   {children}
 </AdTrafficGuardProvider>

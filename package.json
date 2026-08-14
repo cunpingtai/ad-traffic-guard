@@ -1,7 +1,7 @@
 {
   "name": "@cunpingtai/ad-traffic-guard",
-  "version": "0.2.0",
-  "description": "AdSense eligibility orchestrator: isbot + BotD + visibility/engagement gating before loading ads.",
+  "version": "0.2.1",
+  "description": "AdSense eligibility orchestrator: isbot + BotD + visibility/engagement gating before loading ads. Default passthrough mode currently allows all ads.",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

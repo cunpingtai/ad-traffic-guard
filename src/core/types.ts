@@ -3,6 +3,7 @@ export type AdEligibilityStatus = "waiting" | "allowed" | "blocked";
 
 export type AdEligibilityReason =
   | "initializing"
+  | "passthrough"
   | "known-bot"
   | "browser-automation"
   | "detecting-automation"
@@ -59,6 +60,11 @@ export type BrowserAutomationDetector = () => Promise<{
 }>;
 
 export interface AdTrafficGuardConfig {
+  /**
+   * When true, skip all eligibility checks and allow ads immediately.
+   * Temporary kill-switch for restoring fill while tuning the guard.
+   */
+  passthrough: boolean;
   /** Minimum visible time after a trusted interaction before ads may load. */
   interactionMinVisibleMs: number;
   /** Minimum visible time for a focused passive reader before ads may load. */

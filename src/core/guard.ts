@@ -78,7 +78,9 @@ export function createAdTrafficGuard(
   let accumulatedVisibleMs = 0;
   let hadTrustedInteraction = false;
   let browserAutomation = false;
-  let browserAutomationReady = Boolean(config.skipBrowserAutomationDetection);
+  let browserAutomationReady = Boolean(
+    config.skipBrowserAutomationDetection || config.passthrough
+  );
   let browserAutomationError = false;
   let interval: ReturnType<typeof setInterval> | null = null;
   let snapshot: AdEligibilityResult = {
@@ -164,7 +166,7 @@ export function createAdTrafficGuard(
   ];
 
   const runBrowserAutomationDetection = () => {
-    if (config.skipBrowserAutomationDetection) {
+    if (config.passthrough || config.skipBrowserAutomationDetection) {
       browserAutomationReady = true;
       browserAutomation = false;
       browserAutomationError = false;
@@ -193,7 +195,9 @@ export function createAdTrafficGuard(
     visibleStartedAt =
       document.visibilityState === "visible" ? startedAt : null;
     browserAutomation = false;
-    browserAutomationReady = Boolean(config.skipBrowserAutomationDetection);
+    browserAutomationReady = Boolean(
+      config.skipBrowserAutomationDetection || config.passthrough
+    );
     browserAutomationError = false;
 
     recordPageView(config.storageKey, config.frequencyWindowMs, {

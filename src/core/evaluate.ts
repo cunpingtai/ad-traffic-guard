@@ -78,6 +78,18 @@ export function evaluateAdEligibility(
   config: AdTrafficGuardConfig
 ): AdEligibilityResult {
   const merged = applyExternalSignals(signals, config.externalSignals);
+
+  if (config.passthrough) {
+    return {
+      status: "allowed",
+      allowed: true,
+      risk: "trusted",
+      score: 0,
+      reason: "passthrough",
+      signals: merged
+    };
+  }
+
   const score = scoreAdTraffic(merged, config);
   const risk = riskFromScore(score, config.highRiskThreshold);
 

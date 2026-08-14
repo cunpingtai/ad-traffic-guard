@@ -21,6 +21,11 @@ export interface LazyAdSlotProps
   format?: string;
   fullWidthResponsive?: boolean;
   rootMargin?: string;
+  /**
+   * When true, push as soon as eligible (no IntersectionObserver).
+   * Defaults to true while the package runs in passthrough mode.
+   */
+  eager?: boolean;
   enabled?: boolean;
   consentGranted?: boolean;
   style?: CSSProperties;
@@ -32,6 +37,7 @@ export function LazyAdSlot({
   format = "auto",
   fullWidthResponsive = true,
   rootMargin = "800px 0px",
+  eager,
   enabled = true,
   consentGranted = true,
   className = "adsbygoogle",
@@ -41,6 +47,7 @@ export function LazyAdSlot({
   const { result } = useAdEligibility();
   const ref = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
+  const shouldEager = eager ?? result.reason === "passthrough";
 
   useEffect(() => {
     if (!enabled || !consentGranted || !result.allowed || pushed.current) return;
@@ -58,7 +65,9 @@ export function LazyAdSlot({
       }
     };
 
-    if (!("IntersectionObserver" in window)) {
+    // Passthrough / eager: load immediately so above-the-fold and Auto-adjacent
+    // manual units are not missed after scroll-gated eligibility.
+    if (shouldEager || !("IntersectionObserver" in window)) {
       push();
       return;
     }
@@ -75,7 +84,7 @@ export function LazyAdSlot({
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [consentGranted, enabled, result.allowed, rootMargin]);
+  }, [consentGranted, enabled, result.allowed, rootMargin, shouldEager]);
 
   return (
     <ins
